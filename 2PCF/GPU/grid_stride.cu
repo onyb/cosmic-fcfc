@@ -48,10 +48,10 @@ __global__ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines
 
     /* We define variables (arrays) in shared memory */
 
-    __shared__ float angle[threads];
+    float angle;
     __shared__ float temp[threads];
 
-    /* We define an index to run through these two arrays */    
+    /* We define an index to run through these two arrays */
 
     int index = threadIdx.x;
 
@@ -63,21 +63,24 @@ __global__ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines
 
     /* We start the counting */
 
-
-        int dim_idx =  blockIdx.x * blockDim.x + threadIdx.x;
-        int dim_idy =  blockIdx.y * blockDim.y + threadIdx.y;
-        x = xd[dim_idx];//MCM
-        y = yd[dim_idx];//MCM
-        z = zd[dim_idx];//MCM
+    for (int i=0;i<number_lines;i++)
+    {
+        x = xd[i];//MCM
+        y = yd[i];//MCM
+        z = zd[i];//MCM
 
         /* The "while" replaces the second for-loop in the sequential calculation case (CPU). We use "while" rather than "if" as recommended in the book "Cuda by Example" */
 
-            xx = xd[dim_idy];//MCM
-            yy = yd[dim_idy];//MCM
-            zz = zd[dim_idy];//MCM
+        for(int dim_idx = blockIdx.x * blockDim.x + threadIdx.x;
+            dim_idx < number_lines;
+            dim_idx += blockDim.x * gridDim.x)
+        {
+            xx = xd[dim_idx];//MCM
+            yy = yd[dim_idx];//MCM
+            zz = zd[dim_idx];//MCM
 
-            /* We make the dot product */ 
-            angle[index] = x * xx + y * yy + z * zz;//MCM
+            /* We make the dot product */
+            angle = x * xx + y * yy + z * zz;//MCM
 
 
             //angle[index]=xd[i]*xd[dim_idx]+yd[i]*yd[dim_idx]+zd[i]*zd[dim_idx];//MCM
@@ -85,18 +88,19 @@ __global__ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
 
-            angle[index]=fminf(angle[index],1.0);
-            angle[index]=acosf(angle[index])*180.0/M_PI;
+            angle=fminf(angle,1.0);
+            angle=acosf(angle)*180.0/M_PI;
             //__syncthreads();//MCM
 
             /* We finally count the number of pairs separated an angular distance "angle", always in shared memory */
 
-            if(angle[index] < number_of_degrees)
+            if(angle < number_of_degrees)
             {
-                atomicAdd( &temp[int(angle[index]*points_per_degree)], 1.0);
+                atomicAdd( &temp[int(angle*points_per_degree)], 1.0);
             }
             __syncthreads();
-
+        }
+    }
 
     /* We copy the number of pairs from shared memory to global memory */
 
@@ -113,7 +117,7 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
 
     /* We define variables (arrays) in shared memory */
 
-    __shared__ float angle[threads];
+    float angle;
     __shared__ float temp[threads];
 
     /* We define an index to run through these two arrays */    
@@ -128,36 +132,42 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
 
     /* We start the counting */
 
-        int dim_idx =  blockIdx.x * blockDim.x + threadIdx.x;
-        int dim_idy =  blockIdx.y * blockDim.y + threadIdx.y;
-        x = xd_real[dim_idx];//MCM
-        y = yd_real[dim_idx];//MCM
-        z = zd_real[dim_idx];//MCM
+    for (int i=0;i<lines_number_1;i++)
+    {
+        x = xd_real[i];//MCM
+        y = yd_real[i];//MCM
+        z = zd_real[i];//MCM
 
         /* The "while" replaces the second for-loop in the sequential calculation case (CPU). We use "while" rather than "if" as recommended in the book "Cuda by Example" */
 
-            xx = xd_sim[dim_idy];//MCM
-            yy = yd_sim[dim_idy];//MCM
-            zz = zd_sim[dim_idy];//MCM
+        for(int dim_idx = blockIdx.x * blockDim.x + threadIdx.x;
+            dim_idx < lines_number_2;
+            dim_idx += blockDim.x * gridDim.x)
+        {
+            xx = xd_sim[dim_idx];//MCM
+            yy = yd_sim[dim_idx];//MCM
+            zz = zd_sim[dim_idx];//MCM
             /* We make the dot product */ 
-            angle[index] = x * xx + y * yy + z * zz;//MCM
+            angle = x * xx + y * yy + z * zz;//MCM
 
             //angle[index]=xd[i]*xd[dim_idx]+yd[i]*yd[dim_idx]+zd[i]*zd[dim_idx];//MCM
             //__syncthreads();//MCM
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
             
-            angle[index]=fminf(angle[index],1.0);
-            angle[index]=acosf(angle[index])*180.0/M_PI;
+            angle=fminf(angle,1.0);
+            angle=acosf(angle)*180.0/M_PI;
             //__syncthreads();//MCM
 
             /* We finally count the number of pairs separated an angular distance "angle", always in shared memory */
 
-            if(angle[index] < number_of_degrees)
+            if(angle < number_of_degrees)
             {
-                atomicAdd( &temp[int(angle[index]*points_per_degree)], 1.0);
+                atomicAdd( &temp[int(angle*points_per_degree)], 1.0);
             }
             __syncthreads();
+        }
+    }
 
     /* We copy the number of pairs from shared memory to global memory */
 
@@ -557,7 +567,11 @@ int main(int argc, char *argv[])
         
     /* We define the GPU-GRID size, it's really the number of blocks we are going to use on the GPU */
 
-    dim3 dimGrid((max_lines/threads)+1, (max_lines/threads)+1);
+    // dim3 dimGrid((max_lines/threads)+1);
+    int numSMs;
+    cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0);
+    dim3 dimGrid(64*numSMs);
+
   
     if (cross_auto(argc,argv)==1)
     {
