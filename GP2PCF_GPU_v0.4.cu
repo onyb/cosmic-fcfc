@@ -1,11 +1,15 @@
+/*
+This project is dual licensed. You may license this software under one of the
+following licences.
 
-/* Authors: Miguel Cardenas-Montes (1)
-            Rafael Ponce (2)
-            Ignacio Sevilla (3)
+  * Creative Commons Attribution-Share Alike 3.0 Unported License
+    http://creativecommons.org/licenses/by-nc-sa/3.0/
 
-(1): miguel.cardenas@ciemat.es
-(2): rafael.ponce@ciemat.es
-(3): ignacio.sevilla@ciemat.es
+  * GNU GENERAL PUBLIC LICENSE v3, designated as a "BY-SA Compatible License"
+    as defined in BY-SA 4.0 on 8 October 2015
+
+See the LICENSE file for full copyright disclosure, and other details.
+
 
 NOTE: This code has been successfully tested on NVIDIA GTX295, C1060, C2050, C2070 and GT555M. The latter is a gaming GPU, for this reason does not accept too many points */
 
