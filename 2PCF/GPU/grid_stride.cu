@@ -1,7 +1,7 @@
 /*
  * This project is dual licensed. You may license this software under one of the
    following licences:
- 
+
    + Creative Commons Attribution-Share Alike 3.0 Unported License
      http://creativecommons.org/licenses/by-nc-sa/3.0/
 
@@ -166,23 +166,6 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
     __syncthreads();
 }
 
-/* This function lets the program knows if you want to do a cross-correlation or a auto-correlation function */
-
-/* This function checks if the name of the first two input files are the same. If the name is the same for both, the program makes the auto-correlation, if not, the program makes the cross-correlation */
-
-int cross_auto(int argc, char *argv[])
-{
-    if(strcmp(argv[1],argv[2])==0)
-    {
-        return(0); /*auto*/
-    }
-    else
-    {
-        return(1); /*cross*/
-    }
-
-}
-
 int copy2dev(float *gpu_xd, float *gpu_yd, float *gpu_zd, float *xd, float *yd, float *zd, int lines_number, float *gpu_ZZ, float *ZZ, dim3 dimGrid, int points_per_degree, int number_of_degrees){
          /* We copy the data in cartesian coordinates to the GPU */  
 
@@ -237,7 +220,6 @@ int copy2dev_mix(float *gpu_xd_1, float *gpu_yd_1, float *gpu_zd_1, float *xd_1,
 
 int main(int argc, char *argv[])
 {
-  
     /* Checking if the input files and call to script meet the requirements */
 
     if (verification(argc, argv)==0)
@@ -281,7 +263,7 @@ int main(int argc, char *argv[])
         
     real_lines_number_1=counting_lines(input_real_file_1);
     random_lines_number=counting_lines(input_random_file);
-    if (cross_auto(argc,argv)==1) real_lines_number_2=counting_lines(input_real_file_2);
+    if (cross_auto(argc,argv)==CROSS) real_lines_number_2=counting_lines(input_real_file_2);
   
     /* We define variables to store the real,random data */
 
@@ -292,7 +274,7 @@ int main(int argc, char *argv[])
     yd_rand = (float *)malloc(random_lines_number * sizeof (float));
     zd_rand = (float *)malloc(random_lines_number * sizeof (float));
     
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         xd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
         yd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
@@ -305,7 +287,7 @@ int main(int argc, char *argv[])
 
     /* Opening the second input file */        
 
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         eq2cart(input_real_file_2,real_lines_number_2,xd_real_2,yd_real_2,zd_real_2);
     }
@@ -321,7 +303,7 @@ int main(int argc, char *argv[])
     cudaMalloc( (void**)&gpu_xd_real_1,real_lines_number_1 * sizeof(float));
     cudaMalloc( (void**)&gpu_yd_real_1,real_lines_number_1 * sizeof(float));
     cudaMalloc( (void**)&gpu_zd_real_1,real_lines_number_1 * sizeof(float));
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS`)
     {
         cudaMalloc( (void**)&gpu_xd_real_2,real_lines_number_2 * sizeof(float));
         cudaMalloc( (void**)&gpu_yd_real_2,real_lines_number_2 * sizeof(float));
@@ -344,7 +326,7 @@ int main(int argc, char *argv[])
     float *D1R;
     float *D2R;
     RR = (float *)malloc(threads*sizeof(float));
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         D1D2 = (float *)malloc(threads*sizeof(float));
         D1R = (float *)malloc(threads*sizeof(float));
@@ -377,7 +359,7 @@ int main(int argc, char *argv[])
     float *gpu_D1R;
     float *gpu_D2R;
     cudaMalloc( (void**)&gpu_RR, threads*sizeof(float));
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         cudaMalloc( (void**)&gpu_D1D2, threads*sizeof(float));
         cudaMalloc( (void**)&gpu_D1R, threads*sizeof(float));
@@ -391,7 +373,7 @@ int main(int argc, char *argv[])
 
     /* We determine which is the maximum number of lines */
     max_lines = max(real_lines_number_1,random_lines_number);
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         max_lines = max(max_lines,real_lines_number_2);
     }
@@ -404,7 +386,7 @@ int main(int argc, char *argv[])
     dim3 dimGrid(64*numSMs);
 
   
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         copy2dev(gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_RR,RR,dimGrid,points_per_degree,number_of_degrees);
         copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_real_2,gpu_yd_real_2,gpu_zd_real_2,xd_real_2,yd_real_2,zd_real_2,real_lines_number_2,gpu_D1D2,D1D2,dimGrid,points_per_degree,number_of_degrees);        
@@ -425,12 +407,12 @@ int main(int argc, char *argv[])
    /* We calculate the normalization factor */
 
    norm_cost_1=float(random_lines_number)/float(real_lines_number_1);
-   if (cross_auto(argc,argv)==1)
+   if (cross_auto(argc,argv)==CROSS)
    {
        norm_cost_2=float(random_lines_number)/float(real_lines_number_2);
    }
 
-   if (cross_auto(argc,argv)==1)
+   if (cross_auto(argc,argv)==CROSS)
    { 
 
         for (int i=1;i<threads;i++)
@@ -472,7 +454,7 @@ int main(int argc, char *argv[])
     cudaFree( gpu_yd_real_1 );
     cudaFree( gpu_zd_real_1 );
     
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         cudaFree( gpu_xd_real_2 );
         cudaFree( gpu_yd_real_2 );
@@ -498,7 +480,7 @@ int main(int argc, char *argv[])
     free(yd_rand);
     free(zd_rand);
 
-    if (cross_auto(argc,argv)==1)
+    if (cross_auto(argc,argv)==CROSS)
     {
         free(xd_real_2);
         free(yd_real_2);

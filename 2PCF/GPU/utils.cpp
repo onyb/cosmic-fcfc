@@ -1,7 +1,7 @@
 /*
  * This project is dual licensed. You may license this software under one of the
    following licences:
- 
+
    + Creative Commons Attribution-Share Alike 3.0 Unported License
      http://creativecommons.org/licenses/by-nc-sa/3.0/
 
