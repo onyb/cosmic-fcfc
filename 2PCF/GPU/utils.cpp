@@ -20,72 +20,25 @@
 #include <fstream>
 #include <cstring>
 #include <cmath>
+#include <sstream>
 
 #include "utils.hpp"
 
-int cols_number(char *input_file)
+int count_lines(const char *file)
 {
-
-    /* Definition of Variables */
-
-    char row[650];
-    char * pch;
-    int columns=0;
-
-    /* Opening the input file */
-
-    std::ifstream f_in(input_file, std::ios::in);
-
-    /* Reading the first line */
-
-    f_in.getline(row,650,'\n');
-
-    /* Closing file */
-
-    f_in.close();
-
-    /* Counting columns */
-
-    pch = strtok (row,"'\t'' '");
-    while (pch != NULL)
+    std::ifstream infile(file);
+    std::string line;
+    int c = 0;
+    while (std::getline(infile, line))
     {
-        columns++;
-        pch = strtok (NULL, "'\t'' '");
+        std::istringstream buffer(line);
+        float a, b;
+        buffer >> a >> b;
+        if (!buffer || !buffer.eof())
+            return -1;
+        c++;
     }
-    return (columns);
-}
-
-/* This function counts the number of rows in a file */
-
-int counting_lines(char *input_file)
-{
-
-    /* Definition of variables */
-
-    int lines=0;
-    char line[650];
-
-    /* Opening the input file */
-
-    std::ifstream f_in;
-    f_in.open(input_file, std::ios::in);
-
-    /* Counting lines */
-
-    while(!f_in.eof())
-    {
-        if(f_in.getline(line, 650, '\n' ) != NULL)
-        {
-            lines=lines+1;
-        }
-    }
-    lines=lines-1;
-
-    /* Closing file */
-
-    f_in.close();
-    
-    return(lines);
+    return c;
 }
 
 /* This function checks the input data */
@@ -133,17 +86,6 @@ int verification(int argc, char *argv[])
     {
         printf("You must introduce a name for the output file");
         return(0);
-    }
-
-    /* Checking cols number in every input file */
-
-    for(f=1;f<4;f++){
-        columns=cols_number(argv[f]);
-        if (columns != 2 )
-        {
-            printf("Number of columns in file number %d must be exactly 2 and the first one has to be the right ascension and the second one the declination, both in degrees",f);
-            return(0);
-        }
     }
 
     return(1);
