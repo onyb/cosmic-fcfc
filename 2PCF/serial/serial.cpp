@@ -1,19 +1,9 @@
 /* Header files */
 
-#include <string.h>
-#include <time.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <cuda.h>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
 #include <fstream>
-#include "sys/time.h"
-#include <assert.h>
-#include <sm_20_atomic_functions.h>
+
+#include "utils.hpp"
 
 
 using namespace std;
@@ -156,142 +146,6 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
     __syncthreads();
 }
 
-
-
-/* This function counts the number of columns in a file */
-/* NOTE that this is done only checking the first row */
-
-
-int cols_number(char *input_file)
-{
-
-    /* Definition of Variables */
-
-    char row[650];
-    char * pch;
-    int columns=0;
-
-    /* Opening the input file */
-
-    std::ifstream f_in(input_file, std::ios::in);
-
-    /* Reading the first line */
-
-    f_in.getline(row,650,'\n');
-
-    /* Closing file */
-
-    f_in.close();
-
-    /* Counting columns */
-
-    pch = strtok (row,"'\t'' '");
-    while (pch != NULL)
-    {
-        columns++;
-        pch = strtok (NULL, "'\t'' '");
-    }
-    return (columns);
-}
-
-/* This function counts the number of rows in a file */
-
-int counting_lines(char *input_file)
-{
-
-    /* Definition of variables */
-
-    int lines=0;
-    char line[650];
-
-    /* Opening the input file */
-
-    std::ifstream f_in;
-    f_in.open(input_file, std::ios::in);
-
-    /* Counting lines */
-
-    while(!f_in.eof())
-    {
-        if(f_in.getline(line, 650, '\n' ) != NULL)
-        {
-            lines=lines+1;
-        }
-    }
-    lines=lines-1;
-
-    /* Closing file */
-
-    f_in.close();
-    
-    return(lines);
-}
-
-/* This function checks the input data */
-
-int verification(int argc, char *argv[])
-{
-
-    /* Definition of variables */
-   
-    int points_per_degree;
-    int columns;
-    int f;
-
-    /* Opening, checking and closing the first input file */
-
-    std::ifstream fileinputdata;
-    for(f=1;f<4;f++){
-        fileinputdata.open(argv[f], std::ios::in);
-        if (fileinputdata == NULL)
-        {
-            printf("Error opening data file number %d \n",f);
-            return(0);
-        }
-        fileinputdata.close();
-    }
-
-    /* Checking other input parameters */
-
-    if (argv[4]==NULL)
-    {
-        printf("You must introduce a number of points that you want per degree");
-        return(0);
-    }
-
-    points_per_degree=atoi(argv[4]);
- 
-
-    if (points_per_degree<4 or points_per_degree%4!=0 or points_per_degree>64)
-    {
-        printf("The points per degree must be [4,8,16,32,64]");
-        return(0);
-    }
-
-    if (argv[5]==NULL)
-    {
-        printf("You must introduce a name for the output file");
-        return(0);
-    }
-
-    /* Checking cols number in every input file */
-
-    for(f=1;f<4;f++){
-        columns=cols_number(argv[f]);
-        if (columns != 2 )
-        {
-            printf("Number of columns in file number %d must be exactly 2 and the first one has to be the right ascension and the second one the declination, both in degrees",f);
-            return(0);
-        }
-    }
-
-    return(1);
-}
-
-/* This function lets the program knows if you want to do a cross-correlation or a auto-correlation function */
-
-/* This function checks if the name of the first two input files are the same. If the name is the same for both, the program makes the auto-correlation, if not, the program makes the cross-correlation */
-
 int cross_auto(int argc, char *argv[])
 {
     if(strcmp(argv[1],argv[2])==0)
@@ -305,37 +159,10 @@ int cross_auto(int argc, char *argv[])
 
 }
 
-/* Equatorial to cartesian conversion */ 
-
-int eq2cart(char *filename, int nlines, float *xd, float *yd, float *zd){
-        std::ifstream infile(filename);
-        int n;
-        float ra, dec, phi, cth, th;
-
-        /* We will store the data in cartesian coordinates, that's why we pass the ecuatorial coordinates to spheric coordinates and then to cartesian coordinates */
-
-        for (n=0;n<nlines;n++)
-        {
-            infile>>ra>>dec; /* reading ecuatorial coordinates */
-            phi=ra*M_PI/180.0;
-            cth=cos((90.0-dec)*M_PI/180.0);
-            th=acos(cth);
-
-            /* to cartesian coordinates */
-            
-            xd[n]=cos(phi)*sin(th);
-            yd[n]=sin(phi)*sin(th);
-            zd[n]=cth;    
-        }
-
-        infile.close();
-        
-        return(0);
-}
+/* Main Function*/
 
 int main(int argc, char *argv[])
 {
-  
     /* Checking if the input files and call to script meet the requirements */
 
     if (verification(argc, argv)==0)
@@ -356,6 +183,16 @@ int main(int argc, char *argv[])
     float *xd_real_2,*yd_real_2,*zd_real_2;
     float *xd_rand,*yd_rand,*zd_rand;
 
+    float *gpu_xd_real_1;
+    float *gpu_yd_real_1;
+    float *gpu_zd_real_1;
+    float *gpu_xd_real_2;
+    float *gpu_yd_real_2;
+    float *gpu_zd_real_2;
+    float *gpu_xd_rand;
+    float *gpu_yd_rand;
+    float *gpu_zd_rand;
+
     /* Assignment of Variables with inputs */
 
     input_real_file_1=argv[1];
@@ -367,9 +204,21 @@ int main(int argc, char *argv[])
 
     /* Counting lines in every input file */
         
-    real_lines_number_1=counting_lines(input_real_file_1);
-    random_lines_number=counting_lines(input_random_file);
-    if (cross_auto(argc,argv)==1) real_lines_number_2=counting_lines(input_real_file_2);
+    real_lines_number_1 = count_lines(input_real_file_1);
+    if(real_lines_number_1 == -1)
+        std::cerr << "Incorrectly formatted file: " << input_real_file_1 << std::endl;
+
+    const int mode = (std::string(argv[1]) == std::string(argv[2])) ? AUTO : CROSS;
+
+    if(mode == CROSS){
+        real_lines_number_2 = count_lines(input_real_file_2);
+        if(real_lines_number_2 == -1)
+            std::cerr << "Incorrectly formatted file: " << input_real_file_2 << std::endl;
+    }
+
+    random_lines_number = count_lines(input_random_file);
+    if(random_lines_number == -1)
+        std::cerr << "Incorrectly formatted file: " << input_random_file << std::endl;
   
     /* We define variables to store the real,random data */
 
@@ -380,7 +229,7 @@ int main(int argc, char *argv[])
     yd_rand = (float *)malloc(random_lines_number * sizeof (float));
     zd_rand = (float *)malloc(random_lines_number * sizeof (float));
     
-    if (cross_auto(argc,argv)==1)
+    if(mode == CROSS)
     {
         xd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
         yd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
@@ -393,7 +242,7 @@ int main(int argc, char *argv[])
 
     /* Opening the second input file */        
 
-    if (cross_auto(argc,argv)==1)
+    if(mode == CROSS)
     {
         eq2cart(input_real_file_2,real_lines_number_2,xd_real_2,yd_real_2,zd_real_2);
     }
@@ -402,8 +251,28 @@ int main(int argc, char *argv[])
 
     eq2cart(input_random_file,random_lines_number,xd_rand,yd_rand,zd_rand);
 
+    /* We define variables to send to the GPU */
+
+    /* For real data */
+
+    cudaMalloc( (void**)&gpu_xd_real_1,real_lines_number_1 * sizeof(float));
+    cudaMalloc( (void**)&gpu_yd_real_1,real_lines_number_1 * sizeof(float));
+    cudaMalloc( (void**)&gpu_zd_real_1,real_lines_number_1 * sizeof(float));
+    if(mode == CROSS)
+    {
+        cudaMalloc( (void**)&gpu_xd_real_2,real_lines_number_2 * sizeof(float));
+        cudaMalloc( (void**)&gpu_yd_real_2,real_lines_number_2 * sizeof(float));
+        cudaMalloc( (void**)&gpu_zd_real_2,real_lines_number_2 * sizeof(float));
+    }
+
+    /* For random data */
+
+    cudaMalloc( (void**)&gpu_xd_rand,random_lines_number * sizeof(float));
+    cudaMalloc( (void**)&gpu_yd_rand,random_lines_number * sizeof(float));
+    cudaMalloc( (void**)&gpu_zd_rand,random_lines_number * sizeof(float));
+
     /* We define variables to store the pairs between real data (DD), random data (RR) and both together (DR) */
-  
+
     /* on CPU */
     float *DD;
     float *DR;
@@ -412,7 +281,7 @@ int main(int argc, char *argv[])
     float *D1R;
     float *D2R;
     RR = (float *)malloc(threads*sizeof(float));
-    if (cross_auto(argc,argv)==1)
+    if(mode == CROSS)
     {
         D1D2 = (float *)malloc(threads*sizeof(float));
         D1R = (float *)malloc(threads*sizeof(float));
@@ -437,27 +306,69 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* on GPU */
+    float *gpu_DD;
+    float *gpu_DR;
+    float *gpu_RR;
+    float *gpu_D1D2;
+    float *gpu_D1R;
+    float *gpu_D2R;
+    cudaMalloc( (void**)&gpu_RR, threads*sizeof(float));
+    if(mode == CROSS)
+    {
+        cudaMalloc( (void**)&gpu_D1D2, threads*sizeof(float));
+        cudaMalloc( (void**)&gpu_D1R, threads*sizeof(float));
+        cudaMalloc( (void**)&gpu_D2R, threads*sizeof(float));
+    }
+    else
+    {
+        cudaMalloc( (void**)&gpu_DD, threads*sizeof(float));
+        cudaMalloc( (void**)&gpu_DR, threads*sizeof(float));
+    }
+
     /* We determine which is the maximum number of lines */
     max_lines = max(real_lines_number_1,random_lines_number);
-    if (cross_auto(argc,argv)==1)
+    if(mode == CROSS)
     {
         max_lines = max(max_lines,real_lines_number_2);
     }
 
-    /* Opening the output file */		
+    /* We define the GPU-GRID size, it's really the number of blocks we are going to use on the GPU */
+
+    // dim3 dimGrid((max_lines/threads)+1);
+    int numSMs;
+    cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0);
+    dim3 dimGrid(64*numSMs);
+
+
+    if(mode == CROSS)
+    {
+        copy2dev(gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_RR,RR,dimGrid,points_per_degree,number_of_degrees);
+        copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_real_2,gpu_yd_real_2,gpu_zd_real_2,xd_real_2,yd_real_2,zd_real_2,real_lines_number_2,gpu_D1D2,D1D2,dimGrid,points_per_degree,number_of_degrees);
+        copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_D1R,D1R,dimGrid,points_per_degree,number_of_degrees);
+        copy2dev_mix(gpu_xd_real_2,gpu_yd_real_2,gpu_zd_real_2,xd_real_2,yd_real_2,zd_real_2,real_lines_number_2,gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_D2R,D2R,dimGrid,points_per_degree,number_of_degrees);
+    }
+    else
+    {
+        copy2dev(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_DD,DD,dimGrid,points_per_degree,number_of_degrees);
+        copy2dev(gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_RR,RR,dimGrid,points_per_degree,number_of_degrees);
+        copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_DR,DR,dimGrid,points_per_degree,number_of_degrees);
+    }
+
+    /* Opening the output file */
 
     std::ofstream f_out(output_file);
 
    /* We calculate the normalization factor */
 
    norm_cost_1=float(random_lines_number)/float(real_lines_number_1);
-   if (cross_auto(argc,argv)==1)
+   if(mode == CROSS)
    {
        norm_cost_2=float(random_lines_number)/float(real_lines_number_2);
    }
 
-   if (cross_auto(argc,argv)==1)
-   { 
+   if(mode == CROSS)
+   {
 
         for (int i=1;i<threads;i++)
         {
@@ -488,6 +399,57 @@ int main(int argc, char *argv[])
     /* Closing output files */
 
     f_out.close();
+
+    /* Freeing memory on the GPU */
+
+    cudaFree( gpu_xd_rand );
+    cudaFree( gpu_yd_rand );
+    cudaFree( gpu_zd_rand );
+    cudaFree( gpu_xd_real_1 );
+    cudaFree( gpu_yd_real_1 );
+    cudaFree( gpu_zd_real_1 );
+
+    if(mode == CROSS)
+    {
+        cudaFree( gpu_xd_real_2 );
+        cudaFree( gpu_yd_real_2 );
+        cudaFree( gpu_zd_real_2 );
+        cudaFree( gpu_D1D2 );
+        cudaFree( gpu_D1R );
+        cudaFree( gpu_D2R );
+    }
+    else
+    {
+
+        cudaFree( gpu_DD );
+        cudaFree( gpu_DR );
+        cudaFree( gpu_RR );
+    }
+
+    /* Freeing memory on the CPU */
+
+    free(xd_real_1);
+    free(yd_real_1);
+    free(zd_real_1);
+    free(xd_rand);
+    free(yd_rand);
+    free(zd_rand);
+
+    if(mode == CROSS)
+    {
+        free(xd_real_2);
+        free(yd_real_2);
+        free(zd_real_2);
+        free(D1D2);
+        free(D1R);
+        free(D2R);
+    }
+    else
+    {
+        free(DD);
+        free(DR);
+        free(RR);
+    }
     
     return(0);
 }
