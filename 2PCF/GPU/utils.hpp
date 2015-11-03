@@ -15,11 +15,6 @@
 #define AUTO 0
 #define CROSS 1
 
-inline int cross_auto(char *str1, char *str2)
-{
-    return (std::string(str1) == std::string(str2)) ? AUTO : CROSS;
-}
-
 int count_lines(const char *file);
 
 int cols_number(char *input_file);

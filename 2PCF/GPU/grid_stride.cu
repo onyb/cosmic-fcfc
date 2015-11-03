@@ -265,7 +265,9 @@ int main(int argc, char *argv[])
     if(real_lines_number_1 == -1)
         std::cerr << "Incorrectly formatted file: " << input_real_file_1 << std::endl;
 
-    if(cross_auto(argv[1], argv[2]) == CROSS){
+    const int mode = (std::string(argv[1]) == std::string(argv[2])) ? AUTO : CROSS;
+
+    if(mode == CROSS){
         real_lines_number_2 = count_lines(input_real_file_2);
         if(real_lines_number_2 == -1)
             std::cerr << "Incorrectly formatted file: " << input_real_file_2 << std::endl;
@@ -284,7 +286,7 @@ int main(int argc, char *argv[])
     yd_rand = (float *)malloc(random_lines_number * sizeof (float));
     zd_rand = (float *)malloc(random_lines_number * sizeof (float));
     
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         xd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
         yd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
@@ -297,7 +299,7 @@ int main(int argc, char *argv[])
 
     /* Opening the second input file */        
 
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         eq2cart(input_real_file_2,real_lines_number_2,xd_real_2,yd_real_2,zd_real_2);
     }
@@ -313,7 +315,7 @@ int main(int argc, char *argv[])
     cudaMalloc( (void**)&gpu_xd_real_1,real_lines_number_1 * sizeof(float));
     cudaMalloc( (void**)&gpu_yd_real_1,real_lines_number_1 * sizeof(float));
     cudaMalloc( (void**)&gpu_zd_real_1,real_lines_number_1 * sizeof(float));
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         cudaMalloc( (void**)&gpu_xd_real_2,real_lines_number_2 * sizeof(float));
         cudaMalloc( (void**)&gpu_yd_real_2,real_lines_number_2 * sizeof(float));
@@ -336,7 +338,7 @@ int main(int argc, char *argv[])
     float *D1R;
     float *D2R;
     RR = (float *)malloc(threads*sizeof(float));
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         D1D2 = (float *)malloc(threads*sizeof(float));
         D1R = (float *)malloc(threads*sizeof(float));
@@ -369,7 +371,7 @@ int main(int argc, char *argv[])
     float *gpu_D1R;
     float *gpu_D2R;
     cudaMalloc( (void**)&gpu_RR, threads*sizeof(float));
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         cudaMalloc( (void**)&gpu_D1D2, threads*sizeof(float));
         cudaMalloc( (void**)&gpu_D1R, threads*sizeof(float));
@@ -383,7 +385,7 @@ int main(int argc, char *argv[])
 
     /* We determine which is the maximum number of lines */
     max_lines = max(real_lines_number_1,random_lines_number);
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         max_lines = max(max_lines,real_lines_number_2);
     }
@@ -396,7 +398,7 @@ int main(int argc, char *argv[])
     dim3 dimGrid(64*numSMs);
 
   
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         copy2dev(gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_RR,RR,dimGrid,points_per_degree,number_of_degrees);
         copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_real_2,gpu_yd_real_2,gpu_zd_real_2,xd_real_2,yd_real_2,zd_real_2,real_lines_number_2,gpu_D1D2,D1D2,dimGrid,points_per_degree,number_of_degrees);        
@@ -417,12 +419,12 @@ int main(int argc, char *argv[])
    /* We calculate the normalization factor */
 
    norm_cost_1=float(random_lines_number)/float(real_lines_number_1);
-   if(cross_auto(argv[1], argv[2]) == CROSS)
+   if(mode == CROSS)
    {
        norm_cost_2=float(random_lines_number)/float(real_lines_number_2);
    }
 
-   if(cross_auto(argv[1], argv[2]) == CROSS)
+   if(mode == CROSS)
    { 
 
         for (int i=1;i<threads;i++)
@@ -464,7 +466,7 @@ int main(int argc, char *argv[])
     cudaFree( gpu_yd_real_1 );
     cudaFree( gpu_zd_real_1 );
     
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         cudaFree( gpu_xd_real_2 );
         cudaFree( gpu_yd_real_2 );
@@ -490,7 +492,7 @@ int main(int argc, char *argv[])
     free(yd_rand);
     free(zd_rand);
 
-    if(cross_auto(argv[1], argv[2]) == CROSS)
+    if(mode == CROSS)
     {
         free(xd_real_2);
         free(yd_real_2);
