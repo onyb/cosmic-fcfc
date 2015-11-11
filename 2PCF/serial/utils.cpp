@@ -47,10 +47,11 @@ int verification(int argc, char *argv[])
 {
 
     /* Definition of variables */
-   
+
     int points_per_degree;
     int columns;
     int f;
+    int mode;
 
     /* Opening, checking and closing the first input file */
 
@@ -65,6 +66,10 @@ int verification(int argc, char *argv[])
         fileinputdata.close();
     }
 
+    /* If all input files are okay, determine and set the mode */
+
+    mode = (std::string(argv[1]) == std::string(argv[2])) ? AUTO : CROSS;
+
     /* Checking other input parameters */
 
     if (argv[4]==NULL)
@@ -74,7 +79,7 @@ int verification(int argc, char *argv[])
     }
 
     points_per_degree=atoi(argv[4]);
- 
+
 
     if (points_per_degree<4 or points_per_degree%4!=0 or points_per_degree>64)
     {
@@ -88,10 +93,10 @@ int verification(int argc, char *argv[])
         return(0);
     }
 
-    return(1);
+    return(mode);
 }
 
-/* Equatorial to cartesian conversion */ 
+/* Equatorial to cartesian conversion */
 
 int eq2cart(char *filename, int nlines, float *xd, float *yd, float *zd){
         std::ifstream infile(filename);
@@ -108,13 +113,13 @@ int eq2cart(char *filename, int nlines, float *xd, float *yd, float *zd){
             th=acos(cth);
 
             /* to cartesian coordinates */
-            
+
             xd[n]=cos(phi)*sin(th);
             yd[n]=sin(phi)*sin(th);
-            zd[n]=cth;    
+            zd[n]=cth;
         }
 
         infile.close();
-        
+
         return(0);
 }
