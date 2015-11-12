@@ -9,18 +9,18 @@
 using namespace std;
 
 
-/* Kernels */
+/* Morph_Kernels */
 
-/* This kernel counts the number of pairs in the data file */
+/* This morph_kernel counts the number of pairs in the data file */
 /* We will use this kernel to calculate real-real pairs and random-random pairs */
 
-__global__ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines,int points_per_degree, int number_of_degrees)
+void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines,int points_per_degree, int number_of_degrees)
 {
 
     /* We define variables (arrays) in shared memory */
 
     float angle;
-    __shared__ float temp[threads];
+    float temp[threads];
 
     /* We define an index to run through these two arrays */
 
@@ -69,21 +69,21 @@ __global__ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines
             {
                 atomicAdd( &temp[int(angle*points_per_degree)], 1.0);
             }
-            __syncthreads();
+            //__syncthreads();
         }
     }
 
     /* We copy the number of pairs from shared memory to global memory */
 
     atomicAdd( &ZZ[threadIdx.x] , temp[threadIdx.x]);
-    __syncthreads();
+    //__syncthreads();
 }
 
-/* This kernel counts the number of pairs that there are between two data groups */
+/* This morph_kernel counts the number of pairs that there are between two data groups */
 /* We will use this kernel to calculate real-random pairs and real_1-real_2 pairs (cross-correlation) */
 /* NOTE that this kernel has NOT been merged with 'binning' above: this is for speed optimization, we avoid passing extra variables to the GPU */
 
-__global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, float *yd_sim, float *zd_sim, float *ZY, int lines_number_1, int lines_number_2, int points_per_degree, int number_of_degrees)
+void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, float *yd_sim, float *zd_sim, float *ZY, int lines_number_1, int lines_number_2, int points_per_degree, int number_of_degrees)
 {
 
     /* We define variables (arrays) in shared memory */
@@ -136,28 +136,16 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
             {
                 atomicAdd( &temp[int(angle*points_per_degree)], 1.0);
             }
-            __syncthreads();
+            //__syncthreads();
         }
     }
 
     /* We copy the number of pairs from shared memory to global memory */
 
     atomicAdd( &ZY[threadIdx.x] , temp[threadIdx.x]);
-    __syncthreads();
+    //__syncthreads();
 }
 
-int cross_auto(int argc, char *argv[])
-{
-    if(strcmp(argv[1],argv[2])==0)
-    {
-        return(0); /*auto*/
-    }
-    else
-    {
-        return(1); /*cross*/
-    }
-
-}
 
 /* Main Function*/
 
@@ -183,16 +171,6 @@ int main(int argc, char *argv[])
     float *xd_real_1,*yd_real_1,*zd_real_1;
     float *xd_real_2,*yd_real_2,*zd_real_2;
     float *xd_rand,*yd_rand,*zd_rand;
-
-    float *gpu_xd_real_1;
-    float *gpu_yd_real_1;
-    float *gpu_zd_real_1;
-    float *gpu_xd_real_2;
-    float *gpu_yd_real_2;
-    float *gpu_zd_real_2;
-    float *gpu_xd_rand;
-    float *gpu_yd_rand;
-    float *gpu_zd_rand;
 
     /* Assignment of Variables with inputs */
 
@@ -252,25 +230,6 @@ int main(int argc, char *argv[])
 
     eq2cart(input_random_file,random_lines_number,xd_rand,yd_rand,zd_rand);
 
-    /* We define variables to send to the GPU */
-
-    /* For real data */
-
-    cudaMalloc( (void**)&gpu_xd_real_1,real_lines_number_1 * sizeof(float));
-    cudaMalloc( (void**)&gpu_yd_real_1,real_lines_number_1 * sizeof(float));
-    cudaMalloc( (void**)&gpu_zd_real_1,real_lines_number_1 * sizeof(float));
-    if(mode == CROSS)
-    {
-        cudaMalloc( (void**)&gpu_xd_real_2,real_lines_number_2 * sizeof(float));
-        cudaMalloc( (void**)&gpu_yd_real_2,real_lines_number_2 * sizeof(float));
-        cudaMalloc( (void**)&gpu_zd_real_2,real_lines_number_2 * sizeof(float));
-    }
-
-    /* For random data */
-
-    cudaMalloc( (void**)&gpu_xd_rand,random_lines_number * sizeof(float));
-    cudaMalloc( (void**)&gpu_yd_rand,random_lines_number * sizeof(float));
-    cudaMalloc( (void**)&gpu_zd_rand,random_lines_number * sizeof(float));
 
     /* We define variables to store the pairs between real data (DD), random data (RR) and both together (DR) */
 
@@ -307,26 +266,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* on GPU */
-    float *gpu_DD;
-    float *gpu_DR;
-    float *gpu_RR;
-    float *gpu_D1D2;
-    float *gpu_D1R;
-    float *gpu_D2R;
-    cudaMalloc( (void**)&gpu_RR, threads*sizeof(float));
-    if(mode == CROSS)
-    {
-        cudaMalloc( (void**)&gpu_D1D2, threads*sizeof(float));
-        cudaMalloc( (void**)&gpu_D1R, threads*sizeof(float));
-        cudaMalloc( (void**)&gpu_D2R, threads*sizeof(float));
-    }
-    else
-    {
-        cudaMalloc( (void**)&gpu_DD, threads*sizeof(float));
-        cudaMalloc( (void**)&gpu_DR, threads*sizeof(float));
-    }
-
     /* We determine which is the maximum number of lines */
     max_lines = max(real_lines_number_1,random_lines_number);
     if(mode == CROSS)
@@ -334,26 +273,22 @@ int main(int argc, char *argv[])
         max_lines = max(max_lines,real_lines_number_2);
     }
 
-    /* We define the GPU-GRID size, it's really the number of blocks we are going to use on the GPU */
-
-    // dim3 dimGrid((max_lines/threads)+1);
-    int numSMs;
-    cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0);
-    dim3 dimGrid(64*numSMs);
-
-
     if(mode == CROSS)
     {
-        copy2dev(gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_RR,RR,dimGrid,points_per_degree,number_of_degrees);
-        copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_real_2,gpu_yd_real_2,gpu_zd_real_2,xd_real_2,yd_real_2,zd_real_2,real_lines_number_2,gpu_D1D2,D1D2,dimGrid,points_per_degree,number_of_degrees);
-        copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_D1R,D1R,dimGrid,points_per_degree,number_of_degrees);
-        copy2dev_mix(gpu_xd_real_2,gpu_yd_real_2,gpu_zd_real_2,xd_real_2,yd_real_2,zd_real_2,real_lines_number_2,gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_D2R,D2R,dimGrid,points_per_degree,number_of_degrees);
+    /* Loop Part
+    binning(xd_rand, yd_rand, zd_rand, RR, random_lines_number, points_per_degree, number_of_degrees);
+    binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_real_2, yd_real_2, zd_real_2, D1D2, real_lines_number_1, real_lines_number_2, points_per_degree, number_of_degrees);
+    binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_rand, yd_rand, zd_rand, D1R, real_lines_number_1, random_lines_number, points_per_degree, number_of_degrees);
+    binning_mix(xd_real_2, yd_real_2, zd_real_2, xd_rand, yd_rand, zd_rand, D2R, real_lines_number_2, random_lines_number, points_per_degree, number_of_degrees);
+    */
     }
     else
     {
-        copy2dev(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_DD,DD,dimGrid,points_per_degree,number_of_degrees);
-        copy2dev(gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_RR,RR,dimGrid,points_per_degree,number_of_degrees);
-        copy2dev_mix(gpu_xd_real_1,gpu_yd_real_1,gpu_zd_real_1,xd_real_1,yd_real_1,zd_real_1,real_lines_number_1,gpu_xd_rand,gpu_yd_rand,gpu_zd_rand,xd_rand,yd_rand,zd_rand,random_lines_number,gpu_DR,DR,dimGrid,points_per_degree,number_of_degrees);
+    /* Loop Part
+    binning(xd_real_1, yd_real_1, zd_real_1, DD, real_lines_number_1, points_per_degree, number_of_degrees);
+    binning(xd_rand, yd_rand, zd_rand, RR, random_lines_number, points_per_degree, number_of_degrees);
+    binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_rand, yd_rand, zd_rand, DR, real_lines_number_1, random_lines_number, points_per_degree, number_of_degrees);
+    */
     }
 
     /* Opening the output file */
@@ -401,32 +336,6 @@ int main(int argc, char *argv[])
 
     f_out.close();
 
-    /* Freeing memory on the GPU */
-
-    cudaFree( gpu_xd_rand );
-    cudaFree( gpu_yd_rand );
-    cudaFree( gpu_zd_rand );
-    cudaFree( gpu_xd_real_1 );
-    cudaFree( gpu_yd_real_1 );
-    cudaFree( gpu_zd_real_1 );
-
-    if(mode == CROSS)
-    {
-        cudaFree( gpu_xd_real_2 );
-        cudaFree( gpu_yd_real_2 );
-        cudaFree( gpu_zd_real_2 );
-        cudaFree( gpu_D1D2 );
-        cudaFree( gpu_D1R );
-        cudaFree( gpu_D2R );
-    }
-    else
-    {
-
-        cudaFree( gpu_DD );
-        cudaFree( gpu_DR );
-        cudaFree( gpu_RR );
-    }
-
     /* Freeing memory on the CPU */
 
     free(xd_real_1);
@@ -454,3 +363,4 @@ int main(int argc, char *argv[])
 
     return(0);
 }
+
