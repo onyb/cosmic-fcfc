@@ -81,7 +81,7 @@ __global__ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines
 
 /* This kernel counts the number of pairs that there are between two data groups */
 /* We will use this kernel to calculate real-random pairs and real_1-real_2 pairs (cross-correlation) */
-/* NOTE that this kernel has NOT been merged with 'binning' above: this is for speed optimization, we avoid passing extra variables to the GPU */ 
+/* NOTE that this kernel has NOT been merged with 'binning' above: this is for speed optimization, we avoid passing extra variables to the GPU */
 
 __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, float *yd_sim, float *zd_sim, float *ZY, int lines_number_1, int lines_number_2, int points_per_degree, int number_of_degrees)
 {
@@ -91,7 +91,7 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
     float angle;
     __shared__ float temp[threads];
 
-    /* We define an index to run through these two arrays */    
+    /* We define an index to run through these two arrays */
 
     int index = threadIdx.x;
 
@@ -118,14 +118,14 @@ __global__ void binning_mix(float *xd_real, float *yd_real, float *zd_real, floa
             xx = xd_sim[dim_idx];//MCM
             yy = yd_sim[dim_idx];//MCM
             zz = zd_sim[dim_idx];//MCM
-            /* We make the dot product */ 
+            /* We make the dot product */
             angle = x * xx + y * yy + z * zz;//MCM
 
             //angle[index]=xd[i]*xd[dim_idx]+yd[i]*yd[dim_idx]+zd[i]*zd[dim_idx];//MCM
             //__syncthreads();//MCM
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
-            
+
             angle=fminf(angle,1.0);
             angle=acosf(angle)*180.0/M_PI;
             //__syncthreads();//MCM
@@ -165,7 +165,8 @@ int main(int argc, char *argv[])
 {
     /* Checking if the input files and call to script meet the requirements */
 
-    if (verification(argc, argv)==0)
+    const int mode = verification(argc, argv);
+    if (mode == 0)
     {
         exit(1);
     }
@@ -195,20 +196,20 @@ int main(int argc, char *argv[])
 
     /* Assignment of Variables with inputs */
 
-    input_real_file_1=argv[1];
-    input_real_file_2=argv[2];
-    input_random_file=argv[3];
-    points_per_degree=atoi(argv[4]);
-    number_of_degrees=int(float(threads)/float(points_per_degree));
+    input_real_file_1 = argv[1];
+    input_real_file_2 = argv[2];
+    input_random_file = argv[3];
+    points_per_degree = atoi(argv[4]);
+    number_of_degrees = int(float(threads)/float(points_per_degree));
     output_file=argv[5];
 
     /* Counting lines in every input file */
-        
+
     real_lines_number_1 = count_lines(input_real_file_1);
     if(real_lines_number_1 == -1)
         std::cerr << "Incorrectly formatted file: " << input_real_file_1 << std::endl;
 
-    const int mode = (std::string(argv[1]) == std::string(argv[2])) ? AUTO : CROSS;
+    /* const int mode = (std::string(argv[1]) == std::string(argv[2])) ? AUTO : CROSS; */
 
     if(mode == CROSS){
         real_lines_number_2 = count_lines(input_real_file_2);
@@ -219,7 +220,7 @@ int main(int argc, char *argv[])
     random_lines_number = count_lines(input_random_file);
     if(random_lines_number == -1)
         std::cerr << "Incorrectly formatted file: " << input_random_file << std::endl;
-  
+
     /* We define variables to store the real,random data */
 
     xd_real_1 = (float *)malloc(real_lines_number_1 * sizeof (float));
@@ -228,26 +229,26 @@ int main(int argc, char *argv[])
     xd_rand = (float *)malloc(random_lines_number * sizeof (float));
     yd_rand = (float *)malloc(random_lines_number * sizeof (float));
     zd_rand = (float *)malloc(random_lines_number * sizeof (float));
-    
+
     if(mode == CROSS)
     {
         xd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
         yd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
-        zd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));       
+        zd_real_2 = (float *)malloc(real_lines_number_2 * sizeof (float));
     }
 
-    /* Opening the first input file */        
+    /* Opening the first input file */
 
     eq2cart(input_real_file_1,real_lines_number_1,xd_real_1,yd_real_1,zd_real_1);
 
-    /* Opening the second input file */        
+    /* Opening the second input file */
 
     if(mode == CROSS)
     {
         eq2cart(input_real_file_2,real_lines_number_2,xd_real_2,yd_real_2,zd_real_2);
     }
 
-    /* Opening the third input file */        
+    /* Opening the third input file */
 
     eq2cart(input_random_file,random_lines_number,xd_rand,yd_rand,zd_rand);
 
@@ -374,10 +375,10 @@ int main(int argc, char *argv[])
         {
             /* The angle corresponding to the W value */
 
-            angle_theta=(1.0/points_per_degree)/2.0+(i*(1.0/points_per_degree));              
+            angle_theta=(1.0/points_per_degree)/2.0+(i*(1.0/points_per_degree));
 
             /* We are calculating the Landy & Szalay estimator */
-            
+
             W=(norm_cost_1)*(norm_cost_2)*(D1D2[i]/RR[i])-(norm_cost_1)*(D1R[i]/RR[i])-(norm_cost_2)*(D2R[i]/RR[i])+1.0;
             poissonian_error=(1.0+W)/sqrt(D1D2[i]);
             f_out<<angle_theta<<"\t"<<W<<"\t"<<poissonian_error<<"\t"<<D1D2[i]<<"\t"<<D1R[i]<<"\t"<<D2R[i]<<"\t"<<RR[i]<<endl;
@@ -393,9 +394,9 @@ int main(int argc, char *argv[])
             W=(((pow(norm_cost_1,2)*DD[i])-(2*norm_cost_1*DR[i]))/RR[i])+1.0;
             poissonian_error=(1.0+W)/sqrt(DD[i]);
             f_out<<angle_theta<<"\t"<<W<<"\t"<<poissonian_error<<"\t"<<DD[i]<<"\t"<<DR[i]<<"\t"<<RR[i]<<endl;
-        } 
+        }
     }
-  
+
     /* Closing output files */
 
     f_out.close();
@@ -450,6 +451,6 @@ int main(int argc, char *argv[])
         free(DR);
         free(RR);
     }
-    
+
     return(0);
 }

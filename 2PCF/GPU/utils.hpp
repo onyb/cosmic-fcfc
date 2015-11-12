@@ -12,8 +12,8 @@
    copyright disclosure, and other details.
  */
 
-#define AUTO 0
-#define CROSS 1
+#define AUTO 1
+#define CROSS 2
 
 int count_lines(const char *file);
 
