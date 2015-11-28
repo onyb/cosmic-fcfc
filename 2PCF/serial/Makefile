@@ -1,12 +1,12 @@
-CC=nvcc
-CFLAGS=-I.
+CC=g++
+CFLAGS=-I Wall
 DEPS = utils.hpp
 OBJ = serial.o utils.o
 
-%.o: %.cu $(DEPS)
+%.o: %.cpp $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-grid_stride: $(OBJ)
+serial: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
 
 .PHONY: clean

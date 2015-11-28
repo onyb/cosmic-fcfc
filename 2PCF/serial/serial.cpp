@@ -2,33 +2,23 @@
 
 #include <iostream>
 #include <fstream>
+#include <cstdlib>
+#include <cmath>
 
 #include "utils.hpp"
-
 
 using namespace std;
 
 
 /* Morph_Kernels */
 
-/* This morph_kernel counts the number of pairs in the data file */
+/* This function counts the number of pairs in the data file */
 /* We will use this kernel to calculate real-real pairs and random-random pairs */
 
 void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines,int points_per_degree, int number_of_degrees)
 {
+    float angle[number_lines];
 
-    /* We define variables (arrays) in shared memory */
-
-    float angle;
-    float temp[threads];
-
-    /* We define an index to run through these two arrays */
-
-    int index = threadIdx.x;
-
-    /* This variable is necesary to accelerate the calculation, it's due that "temp" was definied in the shared memory too */
-
-    temp[index]=0;
     float x,y,z; //MCM
     float xx,yy,zz; //MCM
 
@@ -40,64 +30,44 @@ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines,int points
         y = yd[i];//MCM
         z = zd[i];//MCM
 
-        /* The "while" replaces the second for-loop in the sequential calculation case (CPU). We use "while" rather than "if" as recommended in the book "Cuda by Example" */
+        /* Beginning the sequential calculation case (CPU). We use "while" rather than "if" as recommended in the book "Cuda by Example" */
 
-        for(int dim_idx = blockIdx.x * blockDim.x + threadIdx.x;
-            dim_idx < number_lines;
-            dim_idx += blockDim.x * gridDim.x)
+        for(int j = 0; j < number_lines; ++j)
         {
-            xx = xd[dim_idx];//MCM
-            yy = yd[dim_idx];//MCM
-            zz = zd[dim_idx];//MCM
+            xx = xd[j];//MCM
+            yy = yd[j];//MCM
+            zz = zd[j];//MCM
 
             /* We make the dot product */
-            angle = x * xx + y * yy + z * zz;//MCM
-
-
-            //angle[index]=xd[i]*xd[dim_idx]+yd[i]*yd[dim_idx]+zd[i]*zd[dim_idx];//MCM
-            //__syncthreads();//MCM
+            angle[i] = x * xx + y * yy + z * zz;//MCM
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
 
-            angle=fminf(angle,1.0);
-            angle=acosf(angle)*180.0/M_PI;
-            //__syncthreads();//MCM
+            angle[i]=fminf(angle[i],1.0);
+            angle[i]=acosf(angle[i])*180.0/M_PI;
 
-            /* We finally count the number of pairs separated an angular distance "angle", always in shared memory */
+            /* We finally count the number of pairs separated at an angular distance "angle", always in shared memory */
 
-            if(angle < number_of_degrees)
+            if(angle[i] < number_of_degrees)
             {
-                atomicAdd( &temp[int(angle*points_per_degree)], 1.0);
+                ZZ[int(angle[i]*points_per_degree)] = 1.0;
             }
-            //__syncthreads();
         }
     }
-
-    /* We copy the number of pairs from shared memory to global memory */
-
-    atomicAdd( &ZZ[threadIdx.x] , temp[threadIdx.x]);
-    //__syncthreads();
 }
 
-/* This morph_kernel counts the number of pairs that there are between two data groups */
+/* This function counts the number of pairs that there are between two data groups */
 /* We will use this kernel to calculate real-random pairs and real_1-real_2 pairs (cross-correlation) */
 /* NOTE that this kernel has NOT been merged with 'binning' above: this is for speed optimization, we avoid passing extra variables to the GPU */
+
 
 void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, float *yd_sim, float *zd_sim, float *ZY, int lines_number_1, int lines_number_2, int points_per_degree, int number_of_degrees)
 {
 
     /* We define variables (arrays) in shared memory */
 
-    float angle;
-    __shared__ float temp[threads];
+    float angle[lines_number_1];
 
-    /* We define an index to run through these two arrays */
-
-    int index = threadIdx.x;
-
-    /* This variable is necesary to accelerate the calculation, it's due that "temp" was definied in the shared memory too */
-
-    temp[index]=0;
     float x,y,z; //MCM
     float xx,yy,zz; //MCM
 
@@ -109,41 +79,30 @@ void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, 
         y = yd_real[i];//MCM
         z = zd_real[i];//MCM
 
-        /* The "while" replaces the second for-loop in the sequential calculation case (CPU). We use "while" rather than "if" as recommended in the book "Cuda by Example" */
+        /* Beginning the sequential calculation case (CPU). */
 
-        for(int dim_idx = blockIdx.x * blockDim.x + threadIdx.x;
-            dim_idx < lines_number_2;
-            dim_idx += blockDim.x * gridDim.x)
+        for(int j = 0; j< lines_number_2; ++j)
         {
-            xx = xd_sim[dim_idx];//MCM
-            yy = yd_sim[dim_idx];//MCM
-            zz = zd_sim[dim_idx];//MCM
-            /* We make the dot product */
-            angle = x * xx + y * yy + z * zz;//MCM
+            xx = xd_sim[j];//MCM
+            yy = yd_sim[j];//MCM
+            zz = zd_sim[j];//MCM
 
-            //angle[index]=xd[i]*xd[dim_idx]+yd[i]*yd[dim_idx]+zd[i]*zd[dim_idx];//MCM
-            //__syncthreads();//MCM
+            /* We make the dot product */
+            angle[i] = x * xx + y * yy + z * zz;//MCM
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
 
-            angle=fminf(angle,1.0);
-            angle=acosf(angle)*180.0/M_PI;
-            //__syncthreads();//MCM
+            angle[i]=fminf(angle[i],1.0);
+            angle[i]=acosf(angle[i])*180.0/M_PI;
 
             /* We finally count the number of pairs separated an angular distance "angle", always in shared memory */
 
-            if(angle < number_of_degrees)
+            if(angle[i] < number_of_degrees)
             {
-                atomicAdd( &temp[int(angle*points_per_degree)], 1.0);
+                ZY[int(angle[i]*points_per_degree)] = 1.0;
             }
-            //__syncthreads();
         }
     }
-
-    /* We copy the number of pairs from shared memory to global memory */
-
-    atomicAdd( &ZY[threadIdx.x] , temp[threadIdx.x]);
-    //__syncthreads();
 }
 
 
@@ -178,7 +137,7 @@ int main(int argc, char *argv[])
     input_real_file_2 = argv[2];
     input_random_file = argv[3];
     points_per_degree = atoi(argv[4]);
-    number_of_degrees = int(float(threads)/float(points_per_degree));
+    number_of_degrees = int(256/float(points_per_degree));
     output_file=argv[5];
 
     /* Counting lines in every input file */
@@ -240,13 +199,13 @@ int main(int argc, char *argv[])
     float *D1D2;
     float *D1R;
     float *D2R;
-    RR = (float *)malloc(threads*sizeof(float));
+    RR = (float *)malloc(real_lines_number_1*sizeof(float));
     if(mode == CROSS)
     {
-        D1D2 = (float *)malloc(threads*sizeof(float));
-        D1R = (float *)malloc(threads*sizeof(float));
-        D2R = (float *)malloc(threads*sizeof(float));
-        for (int i=0; i< threads; i++)
+        D1D2 = (float *)malloc(real_lines_number_1*sizeof(float));
+        D1R = (float *)malloc(real_lines_number_1*sizeof(float));
+        D2R = (float *)malloc(real_lines_number_1*sizeof(float));
+        for (int i=0; i< real_lines_number_1; i++)
         {
             D1D2[i] = 0.0;
             RR[i] = 0.0;
@@ -256,9 +215,9 @@ int main(int argc, char *argv[])
     }
     else
     {
-        DD = (float *)malloc(threads*sizeof(float));
-        DR = (float *)malloc(threads*sizeof(float));
-        for (int i=0; i< threads; i++)
+        DD = (float *)malloc(real_lines_number_1*sizeof(float));
+        DR = (float *)malloc(real_lines_number_1*sizeof(float));
+        for (int i=0; i< real_lines_number_1; i++)
         {
            DD[i] = 0.0;
            RR[i] = 0.0;
@@ -275,20 +234,18 @@ int main(int argc, char *argv[])
 
     if(mode == CROSS)
     {
-    /* Loop Part
-    binning(xd_rand, yd_rand, zd_rand, RR, random_lines_number, points_per_degree, number_of_degrees);
-    binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_real_2, yd_real_2, zd_real_2, D1D2, real_lines_number_1, real_lines_number_2, points_per_degree, number_of_degrees);
-    binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_rand, yd_rand, zd_rand, D1R, real_lines_number_1, random_lines_number, points_per_degree, number_of_degrees);
-    binning_mix(xd_real_2, yd_real_2, zd_real_2, xd_rand, yd_rand, zd_rand, D2R, real_lines_number_2, random_lines_number, points_per_degree, number_of_degrees);
-    */
+        /* Loop Part */
+        binning(xd_rand, yd_rand, zd_rand, RR, random_lines_number, points_per_degree, number_of_degrees);
+        binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_real_2, yd_real_2, zd_real_2, D1D2, real_lines_number_1, real_lines_number_2, points_per_degree, number_of_degrees);
+        binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_rand, yd_rand, zd_rand, D1R, real_lines_number_1, random_lines_number, points_per_degree, number_of_degrees);
+        binning_mix(xd_real_2, yd_real_2, zd_real_2, xd_rand, yd_rand, zd_rand, D2R, real_lines_number_2, random_lines_number, points_per_degree, number_of_degrees);
     }
     else
     {
-    /* Loop Part
-    binning(xd_real_1, yd_real_1, zd_real_1, DD, real_lines_number_1, points_per_degree, number_of_degrees);
-    binning(xd_rand, yd_rand, zd_rand, RR, random_lines_number, points_per_degree, number_of_degrees);
-    binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_rand, yd_rand, zd_rand, DR, real_lines_number_1, random_lines_number, points_per_degree, number_of_degrees);
-    */
+        /* Loop Part */
+        binning(xd_real_1, yd_real_1, zd_real_1, DD, real_lines_number_1, points_per_degree, number_of_degrees);
+        binning(xd_rand, yd_rand, zd_rand, RR, random_lines_number, points_per_degree, number_of_degrees);
+        binning_mix(xd_real_1, yd_real_1, zd_real_1, xd_rand, yd_rand, zd_rand, DR, real_lines_number_1, random_lines_number, points_per_degree, number_of_degrees);
     }
 
     /* Opening the output file */
@@ -306,7 +263,7 @@ int main(int argc, char *argv[])
    if(mode == CROSS)
    {
 
-        for (int i=1;i<threads;i++)
+        for (int i=1;i<real_lines_number_1;i++)
         {
             /* The angle corresponding to the W value */
 
@@ -321,7 +278,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        for (int i=0;i<threads;i++)
+        for (int i=0;i<real_lines_number_1;i++)
         {
             /* The angle corresponding to the W value */
 
