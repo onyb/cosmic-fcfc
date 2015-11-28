@@ -10,14 +10,16 @@
 using namespace std;
 
 
-/* Morph_Kernels */
+/* Binning Functions */
+
+#define BIN_SIZE 256
 
 /* This function counts the number of pairs in the data file */
 /* We will use this kernel to calculate real-real pairs and random-random pairs */
 
 void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines,int points_per_degree, int number_of_degrees)
 {
-    float angle[number_lines];
+    float angle;
 
     float x,y,z; //MCM
     float xx,yy,zz; //MCM
@@ -39,18 +41,18 @@ void binning(float *xd,float *yd,float *zd,float *ZZ,int number_lines,int points
             zz = zd[j];//MCM
 
             /* We make the dot product */
-            angle[i] = x * xx + y * yy + z * zz;//MCM
+            angle = x * xx + y * yy + z * zz;//MCM
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
 
-            angle[i]=fminf(angle[i],1.0);
-            angle[i]=acosf(angle[i])*180.0/M_PI;
+            angle=fminf(angle,1.0);
+            angle=acosf(angle)*180.0/M_PI;
 
             /* We finally count the number of pairs separated at an angular distance "angle", always in shared memory */
 
-            if(angle[i] < number_of_degrees)
+            if(angle < number_of_degrees)
             {
-                ZZ[int(angle[i]*points_per_degree)] = 1.0;
+                ZZ[int(angle*points_per_degree)] += 1.0;
             }
         }
     }
@@ -66,8 +68,7 @@ void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, 
 
     /* We define variables (arrays) in shared memory */
 
-    float angle[lines_number_1];
-
+    float angle;
     float x,y,z; //MCM
     float xx,yy,zz; //MCM
 
@@ -88,18 +89,18 @@ void binning_mix(float *xd_real, float *yd_real, float *zd_real, float *xd_sim, 
             zz = zd_sim[j];//MCM
 
             /* We make the dot product */
-            angle[i] = x * xx + y * yy + z * zz;//MCM
+            angle = x * xx + y * yy + z * zz;//MCM
 
             /* Sometimes "angle" is higher than one, due to numnerical precision, to solve it we use the next sentence */
 
-            angle[i]=fminf(angle[i],1.0);
-            angle[i]=acosf(angle[i])*180.0/M_PI;
+            angle=fminf(angle,1.0);
+            angle=acosf(angle)*180.0/M_PI;
 
             /* We finally count the number of pairs separated an angular distance "angle", always in shared memory */
 
-            if(angle[i] < number_of_degrees)
+            if(angle < number_of_degrees)
             {
-                ZY[int(angle[i]*points_per_degree)] = 1.0;
+                ZY[int(angle*points_per_degree)] += 1.0;
             }
         }
     }
@@ -199,13 +200,13 @@ int main(int argc, char *argv[])
     float *D1D2;
     float *D1R;
     float *D2R;
-    RR = (float *)malloc(real_lines_number_1*sizeof(float));
+    RR = (float *)malloc(BIN_SIZE*sizeof(float));
     if(mode == CROSS)
     {
-        D1D2 = (float *)malloc(real_lines_number_1*sizeof(float));
-        D1R = (float *)malloc(real_lines_number_1*sizeof(float));
-        D2R = (float *)malloc(real_lines_number_1*sizeof(float));
-        for (int i=0; i< real_lines_number_1; i++)
+        D1D2 = (float *)malloc(BIN_SIZE*sizeof(float));
+        D1R = (float *)malloc(BIN_SIZE*sizeof(float));
+        D2R = (float *)malloc(BIN_SIZE*sizeof(float));
+        for (int i = 0; i < BIN_SIZE; i++)
         {
             D1D2[i] = 0.0;
             RR[i] = 0.0;
@@ -215,8 +216,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        DD = (float *)malloc(real_lines_number_1*sizeof(float));
-        DR = (float *)malloc(real_lines_number_1*sizeof(float));
+        DD = (float *)malloc(BIN_SIZE*sizeof(float));
+        DR = (float *)malloc(BIN_SIZE*sizeof(float));
         for (int i=0; i< real_lines_number_1; i++)
         {
            DD[i] = 0.0;
